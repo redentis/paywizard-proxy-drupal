@@ -1,0 +1,78 @@
+<?php
+
+/**
+ * Implements hook_help.
+ * 
+ * Displays help and module information
+ *
+ */
+function proxy_paywizard_help($path, $arg) {
+}
+
+/**
+ * Implements hook_menu.
+ */
+function proxy_paywizard_menu() {
+  $items = array();
+
+  $items['pw'] = array('title' => 'Paywizard SOAP Action Proxy',
+		       'page callback' => 'paywizard_action',
+		       'delivery callback' => 'paywizard_deliver_xml',
+		       'page arguments' => array(),
+		       'type' => MENU_CALLBACK,
+		       );
+  return $items;
+}
+
+function paywizard_action() {
+  $action = $_POST['action'];
+  $target = $_POST['url'];
+  $envelope = $_POST['envelope'];
+  $soapUser = $_POST['soapUser'];
+  $soapPassword = $_POST['soapPassword'];
+
+  $headers = array(
+		   "Content-type: text/xml;charset=\"utf-8\"",
+		   "Accept: text/xml",
+		   "Cache-Control: no-cache",
+		   "Pragma: no-cache",
+		   "SOAPAction: ".$action,
+		   "Content-length: ".strlen($envelope),
+		   );
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+  curl_setopt($ch, CURLOPT_URL, $target);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+  curl_setopt($ch, CURLOPT_USERPWD, $soapUser.":".$soapPassword);
+
+  if($_SERVER['REQUEST_METHOD']=="POST") {
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $envelope);
+  } else if($_SERVER['REQUEST_METHOD']=="GET"){
+    curl_setopt($soap_do, CURLOPT_POSTFIELDS, null);
+    curl_setopt($soap_do, CURLOPT_POST, false);
+    curl_setopt($soap_do, CURLOPT_HTTPGET, true);
+  }
+  return curl_exec($ch);		
+  if($response === false)
+    $response=curl_error($ch);
+  curl_close($ch);
+  return $response;
+}
+
+function paywizard_deliver_xml($result) {
+  drupal_add_http_header("Access-Control-Allow-Origin", "*");
+  drupal_add_http_header("Access-Control-Allow-Headers","soapaction,content-type,content-length,connection");
+  drupal_add_http_header("Access-Control-Allow-Credentials","true");
+  drupal_add_http_header("Content-Type","text/xml; charset=\"utf-8\"");
+  drupal_add_http_header("Last-Modified", gmdate( "D, d M Y H:i:s" ) . "GMT" );
+  drupal_add_http_header("Cache-Control","no-cache, must-revalidate" );
+  drupal_add_http_header("Pragma", "no-cache" );
+  return $result;
+}
+
+?>
