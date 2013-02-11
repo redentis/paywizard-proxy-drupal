@@ -17,13 +17,17 @@ function proxy_paywizard_menu() {
 
   $items['pw'] = array('title' => 'Paywizard SOAP Action Proxy',
 		       'page callback' => 'paywizard_action',
-		       'delivery callback' => 'paywizard_deliver_xml',
 		       'page arguments' => array(),
+		       'delivery callback' => 'paywizard_deliver_xml',
+		       'access callback' => true,
 		       'type' => MENU_CALLBACK,
 		       );
   return $items;
 }
 
+/** 
+ * Implements hook_menu().
+ */
 function paywizard_action() {
   $action = $_POST['action'];
   $target = $_POST['url'];
@@ -38,6 +42,7 @@ function paywizard_action() {
 		   "Pragma: no-cache",
 		   "SOAPAction: ".$action,
 		   "Content-length: ".strlen($envelope),
+		   "Expect:",
 		   );
 
   $ch = curl_init();
@@ -57,22 +62,32 @@ function paywizard_action() {
     curl_setopt($soap_do, CURLOPT_POST, false);
     curl_setopt($soap_do, CURLOPT_HTTPGET, true);
   }
-  return curl_exec($ch);		
-  if($response === false)
-    $response=curl_error($ch);
+  $result = array();
+
+  $result["response"] = curl_exec($ch);
+		
+  if($result["response"] === false) {
+    $result["response"]=curl_error($ch);
+    $result["error"]=true;
+  }
   curl_close($ch);
-  return $response;
+  return $result;
 }
 
 function paywizard_deliver_xml($result) {
+
   drupal_add_http_header("Access-Control-Allow-Origin", "*");
   drupal_add_http_header("Access-Control-Allow-Headers","soapaction,content-type,content-length,connection");
   drupal_add_http_header("Access-Control-Allow-Credentials","true");
-  drupal_add_http_header("Content-Type","text/xml; charset=\"utf-8\"");
-  drupal_add_http_header("Last-Modified", gmdate( "D, d M Y H:i:s" ) . "GMT" );
+  if (isset($result["error"])) {
+    drupal_add_http_header("Content-Type","text/html; charset=\"utf-8\"");
+  } else {
+    drupal_add_http_header("Content-Type","text/xml; charset=\"utf-8\"");
+  }
   drupal_add_http_header("Cache-Control","no-cache, must-revalidate" );
   drupal_add_http_header("Pragma", "no-cache" );
-  return $result;
+
+  print $result["response"];
 }
 
 ?>
