@@ -1,0 +1,70 @@
+<?php
+require_once('OoyalaApi.php');
+
+/**
+ * Implements hook_help.
+ * 
+ * Displays help and module information
+ *
+ */
+function pingback_help($path, $arg) {
+}
+
+/**
+ * Implements hook_menu.
+ */
+function pingback_menu() {
+  $items = array();
+
+  $items['ooyala/status'] = array('title' => 'Ooyala Processing Callback Handler',
+		       'page callback' => 'pingback_action',
+		       'page arguments' => array(),
+		       'delivery callback' => 'pingback_delivery',
+		       'access callback' => true,
+		       'type' => MENU_CALLBACK,
+		       );
+  return $items;
+}
+
+/**
+ * Implements the callback action.
+ *
+ * This module is an Ooyala API processing ping handler.
+ * See http://support.ooyala.com/developers/documentation/concepts/api_pingurl.html).
+
+ * The function does the following:
+ * - retrieves the metadata associated with the given embedcode;
+ * - checks whether there is a trailer metadata field, which is expected to have
+ *   an external id as it's value; 
+ * - looks up the embedcode associated with the trailer external id; and
+ * - creates / updates the 'trailer_embed' metadata field on the processed asset.
+ *
+ */
+function pingback_action() {
+  $ooyala_api = new OoyalaApi('4zYTAxOo2vwj-0QgUN3pYHGKUagI.qxKT_','7iUsHFZBDHy4UkB8B0UwvRGDpHvc_fpAH4aXLQDh');
+  
+  if (isset($_GET['embedCode'])) {
+    $embed = $_GET['embedCode'];
+    $metadata_path = '/v2/assets/' . $embed . '/metadata';
+    try {
+      $metadata = $ooyala_api->get($metadata_path);
+      if(property_exists($metadata, 'trailer')) { 
+	$trailer_asset = $ooyala_api->get('/v2/assets/' . $metadata->trailer);
+	$asset_meta = array('trailer_embed' => $trailer_asset->embed_code);
+	$ooyala_api->patch($metadata_path, $asset_meta);
+      } else {
+	watchdog('pingback','Content'.$embed.' does not have a \'trailer\' metadata field');
+      }
+    } catch (OoyalaRequestErrorException $e) {
+      watchdog('pingback',$e->getMessage());
+    }
+  } else {
+    watchdog('pingback','Did not received parameter \'embedCode\'',null,WATCHDOG_ERROR);
+  }
+}
+
+/** 
+ * There is not content to deliver back as a result of making this call.
+ */
+function pingback_delivery() {
+}

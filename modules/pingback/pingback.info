@@ -1,0 +1,4 @@
+name = Ooyala Processing Callback Handler
+description = Callback module that handles setting up the trailer embedcode correctly for newly processed assets
+core = 7.x
+files[] = OoyalaApi.php
