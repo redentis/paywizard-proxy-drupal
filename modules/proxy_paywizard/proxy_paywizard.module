@@ -90,4 +90,3 @@ function paywizard_deliver_xml($result) {
   print $result["response"];
 }
 
-?>
