@@ -1,4 +1,3 @@
 name = Paywizard Proxy
 description = Callback module that provides a proxy for the Samsung connected TV app to talk to PayWizards SOAP interface
 core = 7.x
-files[] = proxy.php
