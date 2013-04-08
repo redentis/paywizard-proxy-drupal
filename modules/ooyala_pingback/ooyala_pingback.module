@@ -7,19 +7,19 @@ require_once('OoyalaApi.php');
  * Displays help and module information
  *
  */
-function pingback_help($path, $arg) {
+function ooyala_pingback_help($path, $arg) {
 }
 
 /**
  * Implements hook_menu.
  */
-function pingback_menu() {
+function ooyala_pingback_menu() {
   $items = array();
 
   $items['ooyala/status'] = array('title' => 'Ooyala Processing Callback Handler',
-		       'page callback' => 'pingback_action',
+		       'page callback' => 'ooyala_pingback_action',
 		       'page arguments' => array(),
-		       'delivery callback' => 'pingback_delivery',
+		       'delivery callback' => 'ooyala_pingback_delivery',
 		       'access callback' => true,
 		       'type' => MENU_CALLBACK,
 		       );
@@ -40,7 +40,8 @@ function pingback_menu() {
  * - creates / updates the 'trailer_embed' metadata field on the processed asset.
  *
  */
-function pingback_action() {
+function ooyala_pingback_action() {
+  $result = array();
   $ooyala_api = new OoyalaApi('4zYTAxOo2vwj-0QgUN3pYHGKUagI.qxKT_','7iUsHFZBDHy4UkB8B0UwvRGDpHvc_fpAH4aXLQDh');
   
   if (isset($_GET['embedCode'])) {
@@ -52,19 +53,27 @@ function pingback_action() {
 	$trailer_asset = $ooyala_api->get('/v2/assets/' . $metadata->trailer);
 	$asset_meta = array('trailer_embed' => $trailer_asset->embed_code);
 	$ooyala_api->patch($metadata_path, $asset_meta);
+	$result['message'] = 'Patched trailer metadata for ' . $embed . ':' . $metadata->trailer . ' -> ' . $trailer_asset->embed_code; 
       } else {
-	watchdog('pingback','Content'.$embed.' does not have a \'trailer\' metadata field');
+	$result['message'] = 'Content' . $embed . ' does not have a \'trailer\' metadata field';
+	watchdog('ooyala_pingback',$result);
       }
     } catch (OoyalaRequestErrorException $e) {
-      watchdog('pingback',$e->getMessage());
+      $result['message'] = $e->getMessage();
+      watchdog('ooyala_pingback',$result);
     }
   } else {
-    watchdog('pingback','Did not received parameter \'embedCode\'',null,WATCHDOG_ERROR);
+    $result['message'] = 'Did not received parameter \'embedCode\'';
+    $result['error'] = true;
+    watchdog('ooyala_pingback',$result,null,WATCHDOG_ERROR);
   }
+  return $result;
 }
 
 /** 
  * There is not content to deliver back as a result of making this call.
  */
-function pingback_delivery() {
+function ooyala_pingback_delivery($result) {
+  drupal_add_http_header("Content-Type","text/plain; charset=\"utf-8\"");
+  print $result['message'];
 }
