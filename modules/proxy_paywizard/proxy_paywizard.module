@@ -1,5 +1,11 @@
 <?php
 
+require_once('paywizard.php');
+
+/** Configuration items */
+
+
+
 /**
  * Implements hook_help.
  * 
@@ -13,80 +19,97 @@ function proxy_paywizard_help($path, $arg) {
  * Implements hook_menu.
  */
 function proxy_paywizard_menu() {
-  $items = array();
+ static $nbcu_test_config = array("htUser" => "tvappagency",
+				 "htPassword" => "7328edc9c4",
+				 "retailerRef" => "nbcu",
+				 "retailerPassword" => "XVzrV1mY5",
+				 "submitter" => "tvappagency",
+				 "authCode" => "af88cc58f7",
+				 "rootUrl" => "nbc-tptest-webservices.paywizard.com/secure_services/services/");
 
+ static $nbcu_production_config = array("htUser" => "tvappagency",
+				       "htPassword" => "7328edc9c4",
+				       "retailerRef" => "nbcu",
+				       "retailerPassword" => "XVzrV1mY5",
+				       "submitter" => "tvappagency",
+				       "authCode" => "af88cc58f7",
+				       "rootUrl" => "nbc-tptest-webservices.paywizard.com/secure_services/services/");
+    
+  $items = array();
   $items['pw'] = array('title' => 'Paywizard SOAP Action Proxy',
 		       'page callback' => 'paywizard_action',
-		       'page arguments' => array(),
-		       'delivery callback' => 'paywizard_deliver_xml',
+		       'page arguments' => array('$nbcu_test_config'),
+		       'delivery callback' => 'paywizard_deliver_json',
 		       'access callback' => true,
 		       'type' => MENU_CALLBACK,
 		       );
   return $items;
 }
 
-/** 
- * Implements hook_menu().
- */
-function paywizard_action() {
-  $action = $_POST['action'];
-  $target = $_POST['url'];
-  $envelope = $_POST['envelope'];
-  $soapUser = $_POST['soapUser'];
-  $soapPassword = $_POST['soapPassword'];
-
-  $headers = array(
-		   "Content-type: text/xml;charset=\"utf-8\"",
-		   "Accept: text/xml",
-		   "Cache-Control: no-cache",
-		   "Pragma: no-cache",
-		   "SOAPAction: ".$action,
-		   "Content-length: ".strlen($envelope),
-		   "Expect:",
-		   );
-
-  $ch = curl_init();
-  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-  curl_setopt($ch, CURLOPT_URL, $target);
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-  curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-  curl_setopt($ch, CURLOPT_USERPWD, $soapUser.":".$soapPassword);
-
-  if($_SERVER['REQUEST_METHOD']=="POST") {
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $envelope);
-  } else if($_SERVER['REQUEST_METHOD']=="GET"){
-    curl_setopt($soap_do, CURLOPT_POSTFIELDS, null);
-    curl_setopt($soap_do, CURLOPT_POST, false);
-    curl_setopt($soap_do, CURLOPT_HTTPGET, true);
+function paywizard_action($config) {
+ $tvapp = new TVAppAgency($config);
+ $response = null;
+  try{
+    $username = $_GET['username'];
+    if($_GET['pin']) { // Either there's a PIN or a Password submitted, if not return null
+      $pin = $_GET['pin'];
+      $response = $tvapp->requester->getCustomerAccessTokenWithPIN($username,$pin);
+      $accessToken = $response->accessToken;
+    } elseif($_GET['password']) {
+      $password = $_GET['password'];
+      $response = $tvapp->requester->getCustomerAccessTokenWithPassword($username,$password);
+      $accessToken = $response->accessToken;
+    } else {	
+      $tvapp->writeJSONResponse($response);
+      exit();
+    }
+    watchdog('proxy_paywizard',serialize($response));
+    switch($_GET['action']) {
+    case "getCustomerToken":
+      break;
+    case "getMerchantDrivenPaymentContractStatus":	
+      /* this case will do the following steps to verifiy if a customer has an agreement with a retailer:
+	 1 - we get customer access token
+	 2 - we get the retailer access token providing the username submitted;
+	 3 - if we got a merchant agreement code hardcoded (submitted on init):
+	 - use that merchant agreement to get the MerchantDrivenPaymentContractStatus and check if it's good or not, callback accordingly
+	 - else we get a merchant payment agreements and do the previous line
+      */
+      // test URL paywizard-evo.php?action=getMerchantDrivenPaymentContractStatus&username=tvappagency_102@mgtplctest.com&password=password1
+      $response = $tvapp->getMerchantDrivenPaymentContractStatus($username,$accessToken,$_GET['merchantAgreementCode']);
+      break;
+    case "purchase":
+      /* this case will send a purchase request by doing the following steps:
+	 1 - get customer access token
+	 2 - get retailer access token using the customer username
+	 3 - submit a purchase request with those tokens and the variables passed by GET:
+	 - retailerTransactionRef
+	 - products:
+	 <cor:product>
+	 <cor:productRef>3442</cor:productRef>
+	 <cor:description>The Incredible Hulk</cor:description>
+	 <cor:quantity>1</cor:quantity>
+	 <cor:monetaryAmount>
+	 <core:amount>0.00</core:amount>
+	 <core:currencyCode>GBP</core:currencyCode>
+	 </cor:monetaryAmount>
+	 </cor:product>
+      */
+      // test URL paywizard-evo.php?action=purchase&username=tvappagency_102@mgtplctest.com&password=password1&retailerTransactionRef=tvappagency_102@mgtplctest.com_1361358667_3442_samsung&products={"productRef":3442,"description":"The Incredible Hulk","quantity":1,"monetaryAmount":{"amount":0.00,"currencyCode":"GBP"}}
+      $retailerTransactionRef = $_GET['retailerTransactionRef'];
+      $products = json_decode($_GET['products']);
+      $retailerAccessToken = $tvapp->requester->getRetailerAccessToken($username);
+      $response = $tvapp->requester->purchase($accessToken, $retailerAccessToken, $retailerTransactionRef, $products, $username);
+      break;
+    }
+  } catch(Exception $fault){
+    $response = $fault;
   }
-  $result = array();
-
-  $result["response"] = curl_exec($ch);
-		
-  if($result["response"] === false) {
-    $result["response"]=curl_error($ch);
-    $result["error"]=true;
-  }
-  curl_close($ch);
-  return $result;
+  return $response;
 }
 
-function paywizard_deliver_xml($result) {
-
-  drupal_add_http_header("Access-Control-Allow-Origin", "*");
-  drupal_add_http_header("Access-Control-Allow-Headers","soapaction,content-type,content-length,connection");
-  drupal_add_http_header("Access-Control-Allow-Credentials","true");
-  if (isset($result["error"])) {
-    drupal_add_http_header("Content-Type","text/html; charset=\"utf-8\"");
-  } else {
-    drupal_add_http_header("Content-Type","text/xml; charset=\"utf-8\"");
-  }
-  drupal_add_http_header("Cache-Control","no-cache, must-revalidate" );
-  drupal_add_http_header("Pragma", "no-cache" );
-
-  print $result["response"];
+function paywizard_deliver_json($result) {
+    drupal_add_http_header("Content-Type","text/json; utf-8");
+  echo json_encode($result);
 }
 
