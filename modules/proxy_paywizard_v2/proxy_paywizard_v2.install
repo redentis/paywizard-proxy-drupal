@@ -1,0 +1,6 @@
+<?php
+
+function proxy_paywizard_v2_schema() {
+  $schema[CACHE_PAYWIZARD] = drupal_get_schema_unprocessed('system', 'cache');
+  return $schema;
+}

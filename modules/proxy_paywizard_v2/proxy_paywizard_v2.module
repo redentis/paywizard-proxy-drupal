@@ -1,0 +1,154 @@
+<?php
+
+require_once('paywizard.php');
+define('CACHE_PAYWIZARD', 'cache_paywizard');
+
+/**
+ * Implements hook_help.
+ * 
+ * Displays help and module information
+ *
+ */
+function proxy_paywizard_v2_help($path, $arg) {
+}
+
+function proxy_paywizard_v2_flush_caches() {
+    return array(CACHE_PAYWIZARD);
+}
+
+/**
+ * Implements hook_menu.
+ */
+function proxy_paywizard_v2_menu() {
+ static $nbcu_test_config = array("htUser" => "tvappagency",
+				 "htPassword" => "7328edc9c4",
+				 "retailerRef" => "nbcu",
+				 "retailerPassword" => "XVzrV1mY5",
+				 "submitter" => "tvappagency",
+				 "authCode" => "af88cc58f7",
+				 "rootUrl" => "nbc-tptest-webservices.paywizard.com/secure_services/services/");
+
+ static $nbcu_production_config = array("htUser" => "tvappagency",
+				       "htPassword" => "4c92eba3eb",
+				       "retailerRef" => "nbcu",
+				       "retailerPassword" => "hNW97uEmR",
+				       "submitter" => "tvappagency",
+				       "authCode" => "84fed13303",
+				       "rootUrl" => "nbc-webservices.paywizard.com/secure_services/services/");
+  $items = array();
+  $items['paywizard'] = array('title' => 'Paywizard SOAP Action Proxy',
+		       'page callback' => 'paywizard_action',
+		       'page arguments' => array($nbcu_test_config),
+		       'delivery callback' => 'paywizard_deliver_json',
+		       'access callback' => true,
+		       'type' => MENU_CALLBACK,
+		       );
+  return $items;
+}
+
+function paywizard_action($config) {
+ $tvapp = new TVAppAgency($config);
+ $response = null;
+  try{
+    $username = $_GET['username'];
+    if (($cache = cache_get('token-'.$username)) && !empty($cache->data)) {
+        $response = $cache->data;
+    } else {
+        if(isset($_GET['pin'])) { // Either there's a PIN or a Password submitted, if not return null
+          $pin = $_GET['pin'];
+          $response = getCustomerToken($tvapp->requester, $username, $pin, true);
+        } elseif(isset($_GET['password'])) {
+          $password = $_GET['password'];
+          $response = getCustomerToken($tvapp->requester, $username, $password);          
+        } else {	
+          $tvapp->writeJSONResponse($response);
+          exit();
+        }
+    }
+    
+    $accessToken = $response->accessToken;
+    
+    $action = (isset($_GET['action'])) ? $_GET['action'] : "getCustomerToken";
+
+    switch($action) {
+    case "getCustomerToken":
+      break;
+    case "getRetailerToken":
+        return getRetailerToken($tvapp->requester, $username);
+        break;
+    case "getMerchantDrivenPaymentContractStatus":	
+      /* this case will do the following steps to verifiy if a customer has an agreement with a retailer:
+	 1 - we get customer access token
+	 2 - we get the retailer access token providing the username submitted;
+	 3 - if we got a merchant agreement code hardcoded (submitted on init):
+	 - use that merchant agreement to get the MerchantDrivenPaymentContractStatus and check if it's good or not, callback accordingly
+	 - else we get a merchant payment agreements and do the previous line
+      */
+      // test URL paywizard-evo.php?action=getMerchantDrivenPaymentContractStatus&username=tvappagency_102@mgtplctest.com&password=password1
+      $response = $tvapp->getMerchantDrivenPaymentContractStatus($username,$accessToken,$_GET['merchantAgreementCode']);
+      break;
+    case "purchase":
+      /* this case will send a purchase request by doing the following steps:
+	 1 - get customer access token
+	 2 - get retailer access token using the customer username
+	 3 - submit a purchase request with those tokens and the variables passed by GET:
+	 - retailerTransactionRef
+	 - products:
+	 <cor:product>
+	 <cor:productRef>3442</cor:productRef>
+	 <cor:description>The Incredible Hulk</cor:description>
+	 <cor:quantity>1</cor:quantity>
+	 <cor:monetaryAmount>
+	 <core:amount>0.00</core:amount>
+	 <core:currencyCode>GBP</core:currencyCode>
+	 </cor:monetaryAmount>
+	 </cor:product>
+      */
+      // test URL paywizard-evo.php?action=purchase&username=tvappagency_102@mgtplctest.com&password=password1&retailerTransactionRef=tvappagency_102@mgtplctest.com_1361358667_3442_samsung&products={"productRef":3442,"description":"The Incredible Hulk","quantity":1,"monetaryAmount":{"amount":0.00,"currencyCode":"GBP"}}
+      $retailerTransactionRef = $_GET['retailerTransactionRef'];
+      $products = json_decode($_GET['products']);
+      $response = getRetailerToken($tvapp->requester, $username);
+      $retailerAccessToken = $response->retailerAccessToken;      
+      $response = $tvapp->requester->purchase($accessToken, $retailerAccessToken, $retailerTransactionRef, $products, $username);
+      break;
+    }
+  } catch(Exception $fault){
+    $response = $fault;
+  }
+  return $response;
+}
+
+function getCustomerToken($requester, $username, $password, $ispin=false) {
+    $cid = 'token-'.$username;
+    $response = null;
+    if (($cache = cache_get($cid,CACHE_PAYWIZARD)) && !empty($cache->data) && ($cache->expire > REQUEST_TIME)) {
+        $response = $cache->data;
+    } else {
+        if($ispin) { // Either there's a PIN or a Password submitted, if not return null
+          $response = $requester->getCustomerAccessTokenWithPIN($username,$password);
+        } else {
+          $response = $requester->getCustomerAccessTokenWithPassword($username,$password);
+        }        
+        cache_set($cid,$response,CACHE_PAYWIZARD, REQUEST_TIME+$response->expiresIn);
+    }
+    return $response;
+}
+
+
+function getRetailerToken($requester, $retailerCustRef) {
+    $cid = 'retailer-'.$retailerCustRef;
+    $response = null;
+    if (($cache = cache_get($cid,CACHE_PAYWIZARD)) && !empty($cache->data) && ($cache->expire > REQUEST_TIME)) {
+        $response = $cache->data;
+    } else {
+        $response = $requester->getRetailerAccessToken($retailerCustRef);
+        cache_set($cid,$response,CACHE_PAYWIZARD, REQUEST_TIME+$response->expiresIn);
+    }
+    return $response;    
+}
+
+function paywizard_deliver_json($result) {
+  drupal_add_http_header("Content-Type","text/json; utf-8");
+  echo json_encode($result);
+}
+
