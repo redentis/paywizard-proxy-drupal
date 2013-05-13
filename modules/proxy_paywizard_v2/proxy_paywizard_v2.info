@@ -1,3 +1,5 @@
 name = Paywizard Proxy V2
-description = Callback module that provides a proxy for the Samsung connected TV app to talk to PayWizards SOAP interface
+description = Callback module that provides a proxy for the Samsung connected TV app to talk to PayWizard's SOAP interface
 core = 7.x
+package=Ooyala
+configure = admin/config/proxy_paywizard_v2

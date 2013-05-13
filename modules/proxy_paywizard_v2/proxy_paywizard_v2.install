@@ -3,4 +3,14 @@
 function proxy_paywizard_v2_schema() {
   $schema[CACHE_PAYWIZARD] = drupal_get_schema_unprocessed('system', 'cache');
   return $schema;
-}
+};
+
+function proxy_paywizard_v2_install() {
+    variable_set('paywizard_htuser', 'tvappagency');
+    variable_set('paywizard_htpasswd', '7328edc9c4');
+    variable_set('paywizard_retailerref', 'nbcu');
+    variable_set('paywizard_retailerpasswd', 'XVzrV1mY5');
+    variable_set('paywizard_submitter', 'tvappagency');
+    variable_set('paywizard_authcode', 'af88cc58f7');
+    variable_set('paywizard_rooturl', 'nbc-tptest-webservices.paywizard.com/secure_services/services/');
+};

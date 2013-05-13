@@ -16,33 +16,99 @@ function proxy_paywizard_v2_flush_caches() {
     return array(CACHE_PAYWIZARD);
 }
 
+function proxy_paywizard_v2_admin() {
+  $form = array();
+
+  $form['paywizard_htuser'] = array(
+    '#type' => 'textfield',
+    '#title' => t('htaccess username'),
+    '#default_value' => variable_get('paywizard_htuser'),
+    '#description' => t("The username to be used for HTTP Basic Auth when accessing PayWizard services."),
+    '#required' => TRUE,
+  );
+
+    $form['paywizard_htpasswd'] = array(
+    '#type' => 'password',
+    '#title' => t('htaccess password'),
+    '#default_value' => variable_get('paywizard_htpasswd'),
+    '#description' => t("The password to be used for HTTP Basic Auth when accessing PayWizard services."),
+    '#required' => TRUE,
+  );
+
+  $form['paywizard_retailerref'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Retailer ref'),
+    '#default_value' => variable_get('paywizard_retailerref'),
+    '#description' => t("The reference identifying the retailer."),
+    '#required' => TRUE,
+  );
+
+  $form['paywizard_retailerpasswd'] = array(
+    '#type' => 'password',
+    '#title' => t('Retailer password'),
+    '#default_value' => variable_get('paywizard_retailerpasswd'),
+    '#description' => t("The password associated with the retailer."),
+    '#required' => TRUE,
+  );
+
+  $form['paywizard_submitter'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Submitter'),
+    '#default_value' => variable_get('paywizard_submitter'),
+    '#description' => t("The identifier for the agent making the API calls."),
+    '#required' => TRUE,
+  );
+
+  $form['paywizard_authcode'] = array(
+    '#type' => 'password',
+    '#title' => t('Authcode'),
+    '#default_value' => variable_get('paywizard_authcode'),
+    '#description' => t("The authcode associated with the submitter."),
+    '#required' => TRUE,
+  );
+
+  $form['paywizard_rooturl'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Services root URL'),
+    '#default_value' => variable_get('paywizard_rooturl'),
+    '#description' => t("The root URL to access the PayWizard services."),
+    '#required' => TRUE,
+  );
+  
+  return system_settings_form($form);
+  
+}
+
 /**
  * Implements hook_menu.
  */
 function proxy_paywizard_v2_menu() {
- static $nbcu_test_config = array("htUser" => "tvappagency",
-				 "htPassword" => "7328edc9c4",
-				 "retailerRef" => "nbcu",
-				 "retailerPassword" => "XVzrV1mY5",
-				 "submitter" => "tvappagency",
-				 "authCode" => "af88cc58f7",
-				 "rootUrl" => "nbc-tptest-webservices.paywizard.com/secure_services/services/");
+ static $nbcu_config = array();
+ $nbcu_config["htUser"] = variable_get('paywizard_htuser');
+ $nbcu_config["htPassword"] = variable_get('paywizard_htpasswd');
+ $nbcu_config["retailerRef"] = variable_get('paywizard_retailerref');
+ $nbcu_config["retailerPassword"] = variable_get('paywizard_retailerpasswd');
+ $nbcu_config["submitter"] = variable_get('paywizard_submitter');
+ $nbcu_config["authCode"] = variable_get('paywizard_authcode');
+ $nbcu_config["rootUrl"] = variable_get('paywizard_rooturl');
 
- static $nbcu_production_config = array("htUser" => "tvappagency",
-				       "htPassword" => "4c92eba3eb",
-				       "retailerRef" => "nbcu",
-				       "retailerPassword" => "hNW97uEmR",
-				       "submitter" => "tvappagency",
-				       "authCode" => "84fed13303",
-				       "rootUrl" => "nbc-webservices.paywizard.com/secure_services/services/");
-  $items = array();
+ $items = array();
   $items['paywizard'] = array('title' => 'Paywizard SOAP Action Proxy',
 		       'page callback' => 'paywizard_action',
-		       'page arguments' => array($nbcu_test_config),
+		       'page arguments' => array($nbcu_config),
 		       'delivery callback' => 'paywizard_deliver_json',
 		       'access callback' => true,
 		       'type' => MENU_CALLBACK,
 		       );
+  
+  $items['admin/config/proxy_paywizard_v2'] = array(
+    'title' => 'PayWizard Proxy module settings',
+    'description' => 'Configure the security and connections settings for using the PayWizard proxy',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('proxy_paywizard_v2_admin'),
+    'access arguments' => array('administer proxy_paywizard_v2 settings'),
+    'type' => MENU_NORMAL_ITEM,
+   );
   return $items;
 }
 
@@ -68,7 +134,7 @@ function paywizard_action($config) {
     
     $accessToken = $response->accessToken;
     
-    $action = (isset($_GET['action'])) ? $_GET['action'] : "getCustomerToken";
+    $action = fromArray($_GET, "action", "getCustomerToken");
 
     switch($action) {
     case "getCustomerToken":
@@ -85,7 +151,9 @@ function paywizard_action($config) {
 	 - else we get a merchant payment agreements and do the previous line
       */
       // test URL paywizard-evo.php?action=getMerchantDrivenPaymentContractStatus&username=tvappagency_102@mgtplctest.com&password=password1
-      $response = $tvapp->getMerchantDrivenPaymentContractStatus($username,$accessToken,$_GET['merchantAgreementCode']);
+        $merchantAgreementCode = fromArray($_GET, "merchantAgreementCode");
+        $retailerAccessToken = getRetailerToken($tvapp->requester, $username)->retailerAccessToken;
+      $response = $tvapp->getMerchantDrivenPaymentContractStatus($accessToken,$retailerAccessToken,$merchantAgreementCode);
       break;
     case "purchase":
       /* this case will send a purchase request by doing the following steps:
@@ -105,10 +173,9 @@ function paywizard_action($config) {
 	 </cor:product>
       */
       // test URL paywizard-evo.php?action=purchase&username=tvappagency_102@mgtplctest.com&password=password1&retailerTransactionRef=tvappagency_102@mgtplctest.com_1361358667_3442_samsung&products={"productRef":3442,"description":"The Incredible Hulk","quantity":1,"monetaryAmount":{"amount":0.00,"currencyCode":"GBP"}}
-      $retailerTransactionRef = $_GET['retailerTransactionRef'];
-      $products = json_decode($_GET['products']);
-      $response = getRetailerToken($tvapp->requester, $username);
-      $retailerAccessToken = $response->retailerAccessToken;      
+      $retailerTransactionRef = fromArray($_GET, "retailerTransactionRef");
+      $products = json_decode(fromArray($_GET,"products","[]"));
+      $retailerAccessToken = getRetailerToken($tvapp->requester, $username)->retailerAccessToken;
       $response = $tvapp->requester->purchase($accessToken, $retailerAccessToken, $retailerTransactionRef, $products, $username);
       break;
     }
@@ -117,6 +184,10 @@ function paywizard_action($config) {
   }
   return $response;
 }
+
+function fromArray($a, $key, $default="") {
+    return (isset($a[$key])) ? $a[$key] : $default;
+};
 
 function getCustomerToken($requester, $username, $password, $ispin=false) {
     $cid = 'token-'.$username;
@@ -148,7 +219,13 @@ function getRetailerToken($requester, $retailerCustRef) {
 }
 
 function paywizard_deliver_json($result) {
-  drupal_add_http_header("Content-Type","text/json; utf-8");
-  echo json_encode($result);
+  
+  if($_GET['callback'] && $_GET['callback']!="") {
+    drupal_add_http_header("Content-Type","text/javascript; utf-8");
+    echo $_GET['callback']."(".json_encode($result).")";
+  } else {
+    drupal_add_http_header("Content-Type","text/json; utf-8");
+    echo json_encode($result);
+  }
 }
 

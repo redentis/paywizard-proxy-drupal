@@ -414,8 +414,7 @@ class TVAppAgency {
       echo json_encode($response);
   }
 	
-  public function getMerchantDrivenPaymentContractStatus($username, $accessToken, $merchantAgreementCode="") {
-    $retailerAccessToken = $this->requester->getRetailerAccessToken($username);
+  public function getMerchantDrivenPaymentContractStatus($accessToken, $retailerAccessToken, $merchantAgreementCode="") {
     if($merchantAgreementCode=="") {
       $response = $this->requester->getMerchantPaymentAgreements($accessToken, $retailerAccessToken);
       if(!$response->merchantPaymentAgreements || !$response->merchantPaymentAgreements->merchantPaymentAgreement)
