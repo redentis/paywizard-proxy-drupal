@@ -56,8 +56,8 @@ function ooyala_pingback_action() {
 	$result['message'] = 'Patched trailer metadata for ' . $embed . ':' . $metadata->trailer . ' -> ' . $trailer_asset->embed_code; 
       } else {
 	$result['message'] = 'Content' . $embed . ' does not have a \'trailer\' metadata field';
-	watchdog('ooyala_pingback',$result);
       }
+      watchdog('ooyala_pingback',$result);
     } catch (OoyalaRequestErrorException $e) {
       $result['message'] = $e->getMessage();
       watchdog('ooyala_pingback',$result);
@@ -65,7 +65,7 @@ function ooyala_pingback_action() {
   } else {
     $result['message'] = 'Did not received parameter \'embedCode\'';
     $result['error'] = true;
-    watchdog('ooyala_pingback',$result,null,WATCHDOG_ERROR);
+    watchdog('ooyala_pingback',$result['message'],null,WATCHDOG_ERROR);
   }
   return $result;
 }
