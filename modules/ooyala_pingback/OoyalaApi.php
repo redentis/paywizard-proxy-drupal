@@ -52,7 +52,7 @@ define('OOYALA_API_ROUND_UP_TIME', 300);
 /**
  * This class allows to communicate with Ooyala's API v2.
  */
-class OoyalaApi
+class LocalOoyalaApi
 {
     /**
      * Holds the supported HTTP methods
@@ -106,7 +106,7 @@ class OoyalaApi
      * Holds the HTTP request object. This interacts with cURL, in order to make
      * requests to the API.
      *
-     * @var OoyalaHttpRequest
+     * @var LocalOoyalaHttpRequest
      */
     public $httpRequest;
 
@@ -135,7 +135,7 @@ class OoyalaApi
             $options['cacheBaseUrl'] : OOYALA_API_DEFAULT_CACHE_BASE_URL;
         $this->expirationWindow = isset($options['expirationWindow']) ?
             $options['expirationWindow'] : OOYALA_API_DEFAULT_EXPIRATION_WINDOW;
-        $this->httpRequest = new OoyalaHttpRequest(array(
+        $this->httpRequest = new LocalOoyalaHttpRequest(array(
             'shouldFollowLocation' => true,
             'contentType' => 'application/json',
             'curlOptions' => array(CURLOPT_SSL_VERIFYPEER => false)));
@@ -147,7 +147,7 @@ class OoyalaApi
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
      * @return string the response body.
-     * @throws OoyalaRequestErrorException if an error occurs.
+     * @throws LocalOoyalaRequestErrorException if an error occurs.
      */
     public function get($requestPath, $queryParams = array())
     {
@@ -161,7 +161,7 @@ class OoyalaApi
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
      * @return string the response body.
-     * @throws OoyalaRequestErrorException if an error occurs.
+     * @throws LocalOoyalaRequestErrorException if an error occurs.
      */
     public function post($requestPath, $requestBody = array(),
         $queryParams = array()
@@ -182,7 +182,7 @@ class OoyalaApi
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
      * @return string the response body.
-     * @throws OoyalaRequestErrorException if an error occurs.
+     * @throws LocalOoyalaRequestErrorException if an error occurs.
      */
     public function put($requestPath, $requestBody = array(),
         $queryParams = array()
@@ -203,7 +203,7 @@ class OoyalaApi
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
      * @return string the response body.
-     * @throws OoyalaRequestErrorException if an error occurs.
+     * @throws LocalOoyalaRequestErrorException if an error occurs.
      */
     public function patch($requestPath, $requestBody = array(),
         $queryParams = array()
@@ -224,7 +224,7 @@ class OoyalaApi
      *                            Defaults to array().
      * @param string $requestBody The POST data to send. Defaults to "".
      * @return string the response body.
-     * @throws OoyalaRequestErrorException if an error occurs.
+     * @throws LocalOoyalaRequestErrorException if an error occurs.
      */
     public function delete($requestPath, $queryParams = array()) {
         return $this->sendRequest('DELETE', $requestPath, $queryParams);
@@ -295,9 +295,9 @@ class OoyalaApi
      *                            POST, PUT or PATCH request. Defaults to "".
      *
      * @return array The JSON parsed response if it was success.
-     * @throws OoyalaMethodNotSupportedException if the HTTP method is not
+     * @throws LocalOoyalaMethodNotSupportedException if the HTTP method is not
      *                                           supported.
-     * @throws OoyalaRequestErrorException if there was an error sending the
+     * @throws LocalOoyalaRequestErrorException if there was an error sending the
      *                                     request.
      */
     public function sendRequest($httpMethod, $requestPath,
@@ -307,7 +307,7 @@ class OoyalaApi
             $requestPath = '/v2/' . $requestPath;
         $httpMethod = strtoupper($httpMethod);
         if(!in_array($httpMethod, self::$supportedMethods)) {
-            throw new OoyalaMethodNotSupportedException('Method not supported '
+            throw new LocalOoyalaMethodNotSupportedException('Method not supported '
                 . $httpMethod);
         }
         $params = $this->sanitizeAndAddNeededParams($queryParams);
@@ -341,7 +341,7 @@ class OoyalaApi
  * This class mimics an Object Oriented HTTP Client. Underneath it uses PHP's
  * cURL.
  */
-class OoyalaHttpRequest
+class LocalOoyalaHttpRequest
 {
     /**
      * Holds the main options.
@@ -395,7 +395,7 @@ class OoyalaHttpRequest
      * @param string $url     the URL to request.
      * @param array  $options extra options to override the default ones.
      * @return array Associative array with the status and body keys.
-     * @throws OoyalaRequestErrorException if the request failed to execute.
+     * @throws LocalOoyalaRequestErrorException if the request failed to execute.
      */
     public function execute($method, $url, $options = array())
     {
@@ -419,7 +419,7 @@ class OoyalaHttpRequest
         if($response === false) {
             $error = curl_error($ch);
             curl_close($ch);
-            throw new OoyalaRequestErrorException("cURL Error $error");
+            throw new LocalOoyalaRequestErrorException("cURL Error $error");
         }
 
         $headers  = curl_getinfo($ch);
@@ -432,7 +432,7 @@ class OoyalaHttpRequest
         }
 
         $error = "HTTP Error ($httpCode), Response: $response.";
-        throw new OoyalaRequestErrorException($error);
+        throw new LocalOoyalaRequestErrorException($error);
     }
 
     private function applyOptions($options)
@@ -458,5 +458,5 @@ class OoyalaHttpRequest
     }
 }
 
-class OoyalaMethodNotSupportedException extends Exception {}
-class OoyalaRequestErrorException extends Exception {}
+class LocalOoyalaMethodNotSupportedException extends Exception {}
+class LocalOoyalaRequestErrorException extends Exception {}

@@ -42,7 +42,7 @@ function ooyala_pingback_menu() {
  */
 function ooyala_pingback_action() {
   $result = array();
-  $ooyala_api = new OoyalaApi('4zYTAxOo2vwj-0QgUN3pYHGKUagI.qxKT_','7iUsHFZBDHy4UkB8B0UwvRGDpHvc_fpAH4aXLQDh');
+  $ooyala_api = new LocalOoyalaApi('4zYTAxOo2vwj-0QgUN3pYHGKUagI.qxKT_','7iUsHFZBDHy4UkB8B0UwvRGDpHvc_fpAH4aXLQDh');
   
   if (isset($_GET['embedCode'])) {
     $embed = $_GET['embedCode'];
@@ -58,7 +58,7 @@ function ooyala_pingback_action() {
 	$result['message'] = 'Content' . $embed . ' does not have a \'trailer\' metadata field';
       }
       watchdog('ooyala_pingback',$result);
-    } catch (OoyalaRequestErrorException $e) {
+    } catch (LocalOoyalaRequestErrorException $e) {
       $result['message'] = $e->getMessage();
       watchdog('ooyala_pingback',$result);
     }
