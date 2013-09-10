@@ -382,7 +382,7 @@ class PayWizardSOAPRequester {
 			    );
     // Call the operation
     $result = $client->purchase($requestDetails);		
-
+    
     return $result;
   }
 }
@@ -415,6 +415,7 @@ class TVAppAgency {
   }
 	
   public function getMerchantDrivenPaymentContractStatus($accessToken, $retailerAccessToken, $merchantAgreementCode="") {
+      /*
     if($merchantAgreementCode=="") {
       $response = $this->requester->getMerchantPaymentAgreements($accessToken, $retailerAccessToken);
       if(!$response->merchantPaymentAgreements || !$response->merchantPaymentAgreements->merchantPaymentAgreement)
@@ -426,7 +427,7 @@ class TVAppAgency {
       }
       if($merchantAgreementCode=="")
 	return null;
-    }
+    }*/
     return $this->requester->getMerchantDrivenPaymentContractStatus($retailerAccessToken, $merchantAgreementCode);
 /*
   if(!$response->contractStatuses || !$response->contractStatuses->contractStatus)
